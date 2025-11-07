@@ -1,6 +1,6 @@
-namespace Cryptocop.Software.API.Models.Dtos;
+namespace Cryptocop.Software.API.Models.Entities;
 
-public class AddressDto
+public class Address
 {
     public int Id { get; set; }
     public string StreetName { get; set; }
@@ -8,4 +8,8 @@ public class AddressDto
     public string ZipCode { get; set; }
     public string Country { get; set; }
     public string City { get; set; }
+
+    // FK
+    public int UserId { get; set; }
+    public User User { get; set; }
 }

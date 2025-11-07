@@ -1,6 +1,6 @@
-namespace Cryptocop.Software.API.Models.Dtos;
+namespace Cryptocop.Software.API.Models.Entities;
 
-public class OrderDto
+public class Order
 {
     public int Id { get; set; }
     public string Email { get; set; }
@@ -10,9 +10,10 @@ public class OrderDto
     public string ZipCode { get; set; }
     public string Country { get; set; }
     public string City { get; set; }
-    public string CardholderName { get; set; }
-    public string CreditCard { get; set; }
-    public string OrderDate { get; set; } // formatted like "01.01.2020"
+    public string CardHolderName { get; set; }
+    public string MaskedCreditCard { get; set; }
+    public DateTime OrderDate { get; set; }
     public float TotalPrice { get; set; }
-    public IEnumerable<OrderItemDto> OrderItems { get; set; }
+
+    public ICollection<OrderItem> OrderItems { get; set; }
 }

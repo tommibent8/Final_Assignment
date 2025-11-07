@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: cryptocop-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: cryptocop_user
+      POSTGRES_PASSWORD: cryptocop_password
+      POSTGRES_DB: cryptocop_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+volumes:
+  postgres_data:
