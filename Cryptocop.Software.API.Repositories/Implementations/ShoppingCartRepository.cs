@@ -9,14 +9,13 @@ namespace Cryptocop.Software.API.Repositories.Implementations;
 
 public class ShoppingCartRepository : IShoppingCartRepository
 {
-    
     private readonly CryptocopDbContext _dbContext;
 
     public ShoppingCartRepository(CryptocopDbContext dbContext)
     {
         _dbContext = dbContext;
     }
-    
+
     public async Task<IEnumerable<ShoppingCartItemDto>> GetCartItemsAsync(string email)
     {
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
@@ -35,8 +34,9 @@ public class ShoppingCartRepository : IShoppingCartRepository
             ProductIdentifier = i.ProductIdentifier,
             Quantity = i.Quantity,
             UnitPrice = i.UnitPrice,
-            TotalPrice = i.Quantity * i.UnitPrice // ✅ computed dynamically
-        });    }
+            TotalPrice = i.TotalPrice // now from DB
+        });
+    }
 
     public async Task AddCartItemAsync(string email, ShoppingCartItemInputModel item, float priceInUsd)
     {
@@ -59,6 +59,7 @@ public class ShoppingCartRepository : IShoppingCartRepository
         if (existingItem != null)
         {
             existingItem.Quantity += item.Quantity ?? 1;
+            existingItem.TotalPrice = existingItem.Quantity * existingItem.UnitPrice; // update total
         }
         else
         {
@@ -67,11 +68,13 @@ public class ShoppingCartRepository : IShoppingCartRepository
                 ProductIdentifier = item.ProductIdentifier,
                 Quantity = item.Quantity ?? 1,
                 UnitPrice = priceInUsd,
+                TotalPrice = (item.Quantity ?? 1) * priceInUsd // store total price
             };
             cart.ShoppingCartItems.Add(newItem);
         }
 
-        await _dbContext.SaveChangesAsync();    }
+        await _dbContext.SaveChangesAsync();
+    }
 
     public async Task RemoveCartItemAsync(string email, int id)
     {
@@ -86,7 +89,8 @@ public class ShoppingCartRepository : IShoppingCartRepository
         {
             _dbContext.ShoppingCartItems.Remove(item);
             await _dbContext.SaveChangesAsync();
-        }    }
+        }
+    }
 
     public async Task UpdateCartItemQuantityAsync(string email, int id, float quantity)
     {
@@ -100,7 +104,9 @@ public class ShoppingCartRepository : IShoppingCartRepository
         if (item == null) return;
 
         item.Quantity = quantity;
-        await _dbContext.SaveChangesAsync();    }
+        item.TotalPrice = item.Quantity * item.UnitPrice; // keep total in sync
+        await _dbContext.SaveChangesAsync();
+    }
 
     public async Task ClearCartAsync(string email)
     {
@@ -112,7 +118,8 @@ public class ShoppingCartRepository : IShoppingCartRepository
             .ToListAsync();
 
         _dbContext.ShoppingCartItems.RemoveRange(cartItems);
-        await _dbContext.SaveChangesAsync();    }
+        await _dbContext.SaveChangesAsync();
+    }
 
     public async Task DeleteCartAsync(string email)
     {

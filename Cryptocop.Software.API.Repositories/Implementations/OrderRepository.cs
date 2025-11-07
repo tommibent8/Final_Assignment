@@ -47,7 +47,8 @@ public class OrderRepository : IOrderRepository
                 UnitPrice = i.UnitPrice,
                 TotalPrice = i.TotalPrice
             }).ToList()
-        });    }
+        });    
+    }
 
     public async Task<OrderDto> CreateNewOrderAsync(string email, OrderInputModel input)
     {
