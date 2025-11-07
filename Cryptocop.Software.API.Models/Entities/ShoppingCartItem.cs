@@ -7,6 +7,9 @@ public class ShoppingCartItem
         public string ProductIdentifier { get; set; }
         public float Quantity { get; set; }
         public float UnitPrice { get; set; }
+        
+        public float TotalPrice { get; set; }
+
 
         // FK
         public int ShoppingCartId { get; set; }

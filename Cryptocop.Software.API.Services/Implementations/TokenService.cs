@@ -22,10 +22,12 @@ public class TokenService : ITokenService
         var secret = jwtSettings["Secret"];
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
 
-        
+        JwtSecurityTokenHandler.DefaultOutboundClaimTypeMap.Clear();
+
         var claims = new[]
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+            new Claim(JwtRegisteredClaimNames.Sub, user.Email), // keep for compatibility
+            new Claim("email", user.Email),
             new Claim("fullName", user.FullName),
             new Claim("userId", user.Id.ToString()),
             new Claim("tokenId", user.TokenId.ToString())
