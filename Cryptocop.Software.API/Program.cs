@@ -38,6 +38,11 @@ builder.Services.AddScoped<IShoppingCartRepository, ShoppingCartRepository>();
 builder.Services.AddScoped<IShoppingCartService, ShoppingCartService>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddHttpClient<ICryptoCurrencyService, CryptoCurrencyService>();
+builder.Services.AddScoped<IExchangeService, ExchangeService>();
+builder.Services.AddSingleton<IQueueService, QueueService>();
+
+
 
 // JWT setup
 var jwt = builder.Configuration.GetSection("JwtSettings");
