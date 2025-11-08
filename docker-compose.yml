@@ -77,7 +77,7 @@ services:
       - RabbitMQ__Port=5672
       - RabbitMQ__Username=guest
       - RabbitMQ__Password=guest
-      - SendGrid__ApiKey=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
+      - SendGrid__ApiKey=
       - SendGrid__FromEmail=noreply@cryptocop.com
       - SendGrid__FromName=Cryptocop
     depends_on:
