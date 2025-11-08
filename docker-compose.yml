@@ -17,14 +17,44 @@ services:
     container_name: cryptocop-rabbitmq
     restart: always
     ports:
-      - "5672:5672"     # AMQP protocol (used by your API)
-      - "15672:15672"   # Management UI
+      - "5672:5672"     # AMQP protocol (used by API & worker)
+      - "15672:15672"   # Management UI (http://localhost:15672)
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
+  payments-worker:
+    build:
+      context: .
+      dockerfile: Cryptocop.Software.Worker.Payments/Dockerfile
+    depends_on:
+      - rabbitmq
+    environment:
+      - RabbitMq__HostName=rabbitmq
+      - RabbitMq__UserName=guest
+      - RabbitMq__Password=guest
+      - RabbitMq__ExchangeName=cryptocop-exchange
+      - RabbitMq__QueueName=payment-queue
+      - RabbitMq__RoutingKey=create-order
+    restart: always
+    email-worker:
+      build:
+        context: .
+        dockerfile: Cryptocop.Software.Worker.Emails/Dockerfile
+      depends_on:
+        rabbitmq:
+          condition: service_healthy
+      environment:
+        - RabbitMq__HostName=rabbitmq
+        - RabbitMq__UserName=guest
+        - RabbitMq__Password=guest
+        - RabbitMq__ExchangeName=cryptocop-exchange
+        - RabbitMq__QueueName=email-queue
+        - RabbitMq__RoutingKey=create-order
+        - SendGrid__ApiKey=YOUR_SENDGRID_API_KEY
+      restart: always
 volumes:
   postgres_data:
   rabbitmq_data:

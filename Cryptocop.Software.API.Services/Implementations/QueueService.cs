@@ -48,7 +48,7 @@ public class QueueService : IQueueService, IDisposable
             body: bodyBytes
         );
 
-        Console.WriteLine($"📦 Message published to '{routingKey}': {message}");
+        Console.WriteLine($" Message published to '{routingKey}': {message}");
     }
 
     public void Dispose()
