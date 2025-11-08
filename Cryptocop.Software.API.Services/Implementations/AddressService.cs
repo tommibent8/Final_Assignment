@@ -1,23 +1,31 @@
 ﻿using Cryptocop.Software.API.Models.Dtos;
 using Cryptocop.Software.API.Models.InputModels;
+using Cryptocop.Software.API.Repositories.Interfaces;
 using Cryptocop.Software.API.Services.Interfaces;
 
 namespace Cryptocop.Software.API.Services.Implementations;
 
 public class AddressService : IAddressService
 {
-    public Task AddAddressAsync(string email, AddressInputModel address)
+    private readonly IAddressRepository _addressRepository;
+
+    public AddressService(IAddressRepository addressRepository)
     {
-        throw new NotImplementedException();
+        _addressRepository = addressRepository;
     }
 
-    public Task<IEnumerable<AddressDto>> GetAllAddressesAsync(string email)
+    public async Task<IEnumerable<AddressDto>> GetAllAddressesAsync(string email)
     {
-        throw new NotImplementedException();
+        return await _addressRepository.GetAllAddressesAsync(email);
     }
 
-    public Task DeleteAddressAsync(string email, int addressId)
+    public async Task AddAddressAsync(string email, AddressInputModel address)
     {
-        throw new NotImplementedException();
+        await _addressRepository.AddAddressAsync(email, address);
+    }
+
+    public async Task DeleteAddressAsync(string email, int addressId)
+    {
+        await _addressRepository.DeleteAddressAsync(email, addressId);
     }
 }

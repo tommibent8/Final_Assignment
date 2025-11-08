@@ -1,9 +1,8 @@
-﻿using System.Security.Cryptography;
-using System.Text;
-using Cryptocop.Software.API.Models.Dtos;
+﻿using Cryptocop.Software.API.Models.Dtos;
 using Cryptocop.Software.API.Models.Entities;
 using Cryptocop.Software.API.Models.InputModels;
 using Cryptocop.Software.API.Repositories.Contexts;
+using Cryptocop.Software.API.Repositories.Helpers;
 using Cryptocop.Software.API.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,7 +29,7 @@ public class UserRepository : IUserRepository
         }    
         
         // Hash password
-        var hashedPassword = HashPassword(inputModel.Password);
+        var hashedPassword = HashingHelper.HashPassword(inputModel.Password);
 
         // Create user entity
         var user = new User
@@ -58,7 +57,7 @@ public class UserRepository : IUserRepository
 
     public async Task<UserDto> AuthenticateUserAsync(LoginInputModel loginInputModel)
     {
-        var hashedPassword = HashPassword(loginInputModel.Password);
+        var hashedPassword = HashingHelper.HashPassword(loginInputModel.Password);
 
         var user = await _dbContext.Users
             .FirstOrDefaultAsync(u => u.Email == loginInputModel.Email && u.HashedPassword == hashedPassword);
@@ -70,23 +69,15 @@ public class UserRepository : IUserRepository
 
         // Create new token entry
         var token = await _tokenRepository.CreateNewTokenAsync();
-        
+
         return new UserDto
         {
             Id = user.Id,
             FullName = user.FullName,
             Email = user.Email,
-            TokenId = token.Id 
+            TokenId = token.Id
         };
-        
-    }
-    
-    private string HashPassword(string password)
-    {
-        using var sha256 = SHA256.Create();
-        var bytes = Encoding.UTF8.GetBytes(password);
-        var hash = sha256.ComputeHash(bytes);
-        return Convert.ToBase64String(hash);
+
     }
     
     

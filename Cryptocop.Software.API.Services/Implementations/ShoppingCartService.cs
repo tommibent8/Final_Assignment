@@ -1,33 +1,54 @@
 ﻿using Cryptocop.Software.API.Models.Dtos;
 using Cryptocop.Software.API.Models.InputModels;
+using Cryptocop.Software.API.Repositories.Interfaces;
+using Cryptocop.Software.API.Services.Helpers;
 using Cryptocop.Software.API.Services.Interfaces;
 
 namespace Cryptocop.Software.API.Services.Implementations;
 
 public class ShoppingCartService : IShoppingCartService
 {
-    public Task<IEnumerable<ShoppingCartItemDto>> GetCartItemsAsync(string email)
+    private readonly IShoppingCartRepository _shoppingCartRepository;
+    private readonly HttpClient _httpClient;
+
+    public ShoppingCartService(IShoppingCartRepository shoppingCartRepository, HttpClient httpClient)
     {
-        throw new NotImplementedException();
+        _shoppingCartRepository = shoppingCartRepository;
+        _httpClient = httpClient;
     }
 
-    public Task AddCartItemAsync(string email, ShoppingCartItemInputModel shoppingCartItemItem)
+    public async Task<IEnumerable<ShoppingCartItemDto>> GetCartItemsAsync(string email)
     {
-        throw new NotImplementedException();
+        return await _shoppingCartRepository.GetCartItemsAsync(email);
     }
 
-    public Task RemoveCartItemAsync(string email, int id)
+    public async Task AddCartItemAsync(string email, ShoppingCartItemInputModel shoppingCartItemItem)
     {
-        throw new NotImplementedException();
+        // Call Messari API to get current price for this cryptocurrency
+      /*  var response = await _httpClient.GetAsync($"https://data.messari.io/api/v1/assets/{shoppingCartItemItem.ProductIdentifier}/metrics/market-data");
+
+        response.EnsureSuccessStatusCode();
+
+        // Deserialize to get the price
+        var cryptoData = await response.DeserializeJsonToObject<CryptoCurrencyDto>(flatten: true);*/
+
+        // Add to cart with current price
+        //await _shoppingCartRepository.AddCartItemAsync(email, shoppingCartItemItem, cryptoData.PriceInUsd);
+        await _shoppingCartRepository.AddCartItemAsync(email, shoppingCartItemItem, 102);
     }
 
-    public Task UpdateCartItemQuantityAsync(string email, int id, float quantity)
+    public async Task RemoveCartItemAsync(string email, int id)
     {
-        throw new NotImplementedException();
+        await _shoppingCartRepository.RemoveCartItemAsync(email, id);
     }
 
-    public Task ClearCartAsync(string email)
+    public async Task UpdateCartItemQuantityAsync(string email, int id, float quantity)
     {
-        throw new NotImplementedException();
+        await _shoppingCartRepository.UpdateCartItemQuantityAsync(email, id, quantity);
+    }
+
+    public async Task ClearCartAsync(string email)
+    {
+        await _shoppingCartRepository.ClearCartAsync(email);
     }
 }
