@@ -1,12 +1,14 @@
 ﻿using System.Security.Claims;
 using Cryptocop.Software.API.Models.InputModels;
 using Cryptocop.Software.API.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cryptocop.Software.API.Controllers;
 
 [Route("api/addresses")]
 [ApiController]
+[Authorize]
 public class AddressController : ControllerBase
 {
     private readonly IAddressService _addressService;
