@@ -2,43 +2,74 @@
 using System.Text.Json;
 using Cryptocop.Software.API.Models;
 using Cryptocop.Software.API.Services.Interfaces;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 
 namespace Cryptocop.Software.API.Services.Implementations;
 
-public class QueueService : IQueueService, IDisposable
+public class QueueService : IQueueService, IAsyncDisposable, IDisposable
 {
-    private readonly IConnection _connection;
-    private readonly IChannel _channel;
     private readonly RabbitMqSettings _settings;
+    private readonly ILogger<QueueService> _logger;
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private IConnection? _connection;
+    private IChannel? _channel;
 
-    public QueueService(IOptions<RabbitMqSettings> settings)
+    public QueueService(IOptions<RabbitMqSettings> settings, ILogger<QueueService> logger)
     {
         _settings = settings.Value;
+        _logger = logger;
+    }
 
-        var factory = new ConnectionFactory
+    private async Task EnsureInitializedAsync()
+    {
+        if (_channel != null) return;
+
+        await _initLock.WaitAsync();
+        try
         {
-            HostName = _settings.Host,
-            Port = _settings.Port,
-            UserName = _settings.Username,
-            Password = _settings.Password
-        };
+            if (_channel != null) return;
 
-        // New async connection pattern introduced in v7+
-        _connection = factory.CreateConnectionAsync().GetAwaiter().GetResult();
-        _channel = _connection.CreateChannelAsync().GetAwaiter().GetResult();
+            var factory = new ConnectionFactory
+            {
+                HostName = _settings.Host,
+                Port = _settings.Port,
+                UserName = _settings.Username,
+                Password = _settings.Password
+            };
 
-        // Exchange declaration now requires async method as well
-        _channel.ExchangeDeclareAsync(
-            exchange: _settings.ExchangeName,
-            type: ExchangeType.Direct,
-            durable: true
-        ).GetAwaiter().GetResult();
+            _connection = await factory.CreateConnectionAsync();
+            _channel = await _connection.CreateChannelAsync();
+
+            await _channel.ExchangeDeclareAsync(
+                exchange: _settings.ExchangeName,
+                type: ExchangeType.Direct,
+                durable: true
+            );
+
+            _logger.LogInformation("RabbitMQ connection initialized successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize RabbitMQ connection");
+            throw;
+        }
+        finally
+        {
+            _initLock.Release();
+        }
     }
 
     public async Task PublishMessageAsync(string routingKey, object body)
     {
+        await EnsureInitializedAsync();
+
+        if (_channel == null)
+        {
+            throw new InvalidOperationException("Channel not initialized");
+        }
+
         var message = JsonSerializer.Serialize(body);
         var bodyBytes = Encoding.UTF8.GetBytes(message);
 
@@ -52,12 +83,30 @@ public class QueueService : IQueueService, IDisposable
             body: bodyBytes
         );
 
-        Console.WriteLine($" Message published to '{routingKey}': {message}");
+        _logger.LogInformation("Message published to '{RoutingKey}': {Message}", routingKey, message);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_channel != null)
+        {
+            await _channel.CloseAsync();
+            _channel.Dispose();
+        }
+
+        if (_connection != null)
+        {
+            await _connection.CloseAsync();
+            _connection.Dispose();
+        }
+
+        _initLock.Dispose();
     }
 
     public void Dispose()
     {
         _channel?.Dispose();
         _connection?.Dispose();
+        _initLock.Dispose();
     }
 }
