@@ -1,5 +1,6 @@
 using System.Text;
 using Cryptocop.Software.API.Middleware;
+using Cryptocop.Software.API.Models;
 using Cryptocop.Software.API.Repositories.Contexts;
 using Cryptocop.Software.API.Repositories.Implementations;
 using Cryptocop.Software.API.Repositories.Interfaces;
@@ -23,6 +24,9 @@ Console.WriteLine("DB Connection: " + builder.Configuration.GetConnectionString(
 
 builder.Services.AddDbContext<CryptocopDbContext>(opts =>
     opts.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// RabbitMQ Configuration
+builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMq"));
 
 // Dependencies
 builder.Services.AddScoped<IUserRepository, UserRepository>();

@@ -96,17 +96,21 @@ public class Worker : BackgroundService
             <html>
             <body style='font-family: Arial;'>
                 <h2>Order Confirmation</h2>
-                <p>Hi {order.Email},</p>
+                <p>Hi {order.FullName},</p>
                 <p>Your order (ID: {order.OrderId}) has been placed successfully on {order.OrderDate}.</p>
                 <p><strong>Total:</strong> ${order.TotalPrice}</p>
                 <h4>Items:</h4>
                 <ul>
                     {string.Join("", order.Items.Select(i => $"<li>{i.ProductIdentifier} - {i.Quantity} × ${i.UnitPrice}</li>"))}
                 </ul>
+                <p> Will be sent to {order.Address}, {order.ZipCode} {order.City}, {order.Country} </p>   
+
                 <p>Thank you for shopping with Cryptocop!</p>
             </body>
             </html>";
 
+        _logger.LogInformation(htmlContent);
+        
         var msg = MailHelper.CreateSingleEmail(from, to, subject, null, htmlContent);
         var response = await client.SendEmailAsync(msg);
         _logger.LogInformation($"📨 Email sent to {order.Email}, status: {response.StatusCode}");
@@ -114,6 +118,12 @@ public class Worker : BackgroundService
 
     private class OrderMessage
     {
+        public string FullName { get; set; } = "";
+        public string Address { get; set; } = "";
+        public string City { get; set; } = "";
+        public string Country { get; set; } = "";
+        public string ZipCode { get; set; } = "";
+        
         public int OrderId { get; set; }
         public string Email { get; set; } = "";
         public float TotalPrice { get; set; }
