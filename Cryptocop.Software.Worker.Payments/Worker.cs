@@ -5,7 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using IModel = RabbitMQ.Client.IModel;
 
 namespace Cryptocop.Software.Worker.Payments;
 
@@ -14,7 +13,7 @@ public class Worker : BackgroundService
     private readonly ILogger<Worker> _logger;
     private readonly IConfiguration _config;
     private IConnection? _connection;
-    private IModel? _channel;
+    private IChannel? _channel;
     private string _queueName = "";
 
     public Worker(ILogger<Worker> logger, IConfiguration config)
@@ -24,8 +23,7 @@ public class Worker : BackgroundService
     }
 
 
-    // This runs once, to set up the connection
-    public override Task StartAsync(CancellationToken cancellationToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
         var factory = new ConnectionFactory
         {
@@ -34,30 +32,30 @@ public class Worker : BackgroundService
             Password = _config["RabbitMq:Password"]
         };
 
-        _connection = factory.CreateConnection();
-        _channel = _connection.CreateModel();
+        _connection = await factory.CreateConnectionAsync(cancellationToken);
+        _channel = await _connection.CreateChannelAsync();
 
         string exchangeName = _config["RabbitMq:ExchangeName"]!;
         _queueName = _config["RabbitMq:QueueName"]!;
         string routingKey = _config["RabbitMq:RoutingKey"]!;
 
-        _channel.ExchangeDeclare(exchangeName, ExchangeType.Direct, durable: true);
-        _channel.QueueDeclare(_queueName, durable: true, exclusive: false, autoDelete: false);
-        _channel.QueueBind(_queueName, exchangeName, routingKey);
+        await _channel.ExchangeDeclareAsync(exchangeName, ExchangeType.Direct, durable: true, cancellationToken: cancellationToken);
+        await _channel.QueueDeclareAsync(_queueName, durable: true, exclusive: false, autoDelete: false, cancellationToken: cancellationToken);
+        await _channel.QueueBindAsync(_queueName, exchangeName, routingKey, cancellationToken: cancellationToken);
 
         _logger.LogInformation("Payment Worker connected to RabbitMQ.");
-        return base.StartAsync(cancellationToken);
+        await base.StartAsync(cancellationToken);
     }
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (_channel == null) 
-            return Task.CompletedTask;
+        if (_channel == null)
+            return;
 
-        var consumer = new EventingBasicConsumer(_channel);
-        consumer.Received += (sender, e) =>
+        var consumer = new AsyncEventingBasicConsumer(_channel);
+        consumer.ReceivedAsync += async (sender, e) =>
         {
             var message = Encoding.UTF8.GetString(e.Body.ToArray());
-            _logger.LogInformation($"📦 Received message: {message}");
+            _logger.LogInformation("📦 Received message: {Message}", message);
 
             try
             {
@@ -66,20 +64,22 @@ public class Worker : BackgroundService
                 {
                     bool isValid = LuhnCheck(order.CreditCardNumber);
                     _logger.LogInformation(isValid
-                        ? $"Valid credit card for {order.Email}"
-                        : $"Invalid credit card for {order.Email}");
+                        ? "Valid credit card for {Email}"
+                        : "Invalid credit card for {Email}", order.Email);
                 }
+
+                await _channel!.BasicAckAsync(e.DeliveryTag, multiple: false);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error processing message: {ex.Message}");
+                _logger.LogError(ex, "Error processing message");
+                await _channel!.BasicNackAsync(e.DeliveryTag, multiple: false, requeue: true);
             }
-
-            _channel?.BasicAck(e.DeliveryTag, multiple: false);
         };
 
-        _channel.BasicConsume(_queueName, autoAck: false, consumer);
-        return Task.CompletedTask;
+        await _channel.BasicConsumeAsync(_queueName, autoAck: false, consumer, stoppingToken);
+
+        await Task.Delay(Timeout.Infinite, stoppingToken);
     }
 
     
@@ -108,10 +108,12 @@ public class Worker : BackgroundService
         public string CreditCardNumber { get; set; } = "";
     }
 
+   
+
     public override void Dispose()
     {
-        _channel?.Close();
-        _connection?.Close();
+        _channel?.Dispose();
+        _connection?.Dispose();
         base.Dispose();
     }
 }

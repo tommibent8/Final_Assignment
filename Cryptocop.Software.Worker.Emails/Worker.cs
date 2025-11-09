@@ -5,8 +5,6 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using SendGrid;
 using SendGrid.Helpers.Mail;
-using IModel = RabbitMQ.Client.IModel;
-
 
 namespace Cryptocop.Software.Worker.Emails;
 
@@ -15,7 +13,7 @@ public class Worker : BackgroundService
     private readonly ILogger<Worker> _logger;
     private readonly IConfiguration _config;
     private IConnection? _connection;
-    private IModel? _channel;
+    private IChannel? _channel;
     private string _queueName = "";
 
     public Worker(ILogger<Worker> logger, IConfiguration config)
@@ -24,7 +22,7 @@ public class Worker : BackgroundService
         _config = config;
     }
 
-    public override Task StartAsync(CancellationToken cancellationToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
         var factory = new ConnectionFactory
         {
@@ -33,30 +31,31 @@ public class Worker : BackgroundService
             Password = _config["RabbitMq:Password"]
         };
 
-        _connection = factory.CreateConnection();
-        _channel = _connection.CreateModel();
+        _connection = await factory.CreateConnectionAsync(cancellationToken);
+        _channel = await _connection.CreateChannelAsync();
 
         string exchangeName = _config["RabbitMq:ExchangeName"]!;
         _queueName = _config["RabbitMq:QueueName"]!;
         string routingKey = _config["RabbitMq:RoutingKey"]!;
 
-        _channel.ExchangeDeclare(exchangeName, ExchangeType.Direct, durable: true);
-        _channel.QueueDeclare(_queueName, durable: true, exclusive: false, autoDelete: false);
-        _channel.QueueBind(_queueName, exchangeName, routingKey);
+        await _channel.ExchangeDeclareAsync(exchangeName, ExchangeType.Direct, durable: true, cancellationToken: cancellationToken);
+        await _channel.QueueDeclareAsync(_queueName, durable: true, exclusive: false, autoDelete: false, cancellationToken: cancellationToken);
+        await _channel.QueueBindAsync(_queueName, exchangeName, routingKey, cancellationToken: cancellationToken);
 
         _logger.LogInformation("📧 Email Worker connected to RabbitMQ.");
-        return base.StartAsync(cancellationToken);
+        await base.StartAsync(cancellationToken);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (_channel == null) return;
+        if (_channel == null)
+            return;
 
-        var consumer = new EventingBasicConsumer(_channel);
-        consumer.Received += async (sender, e) =>
+        var consumer = new AsyncEventingBasicConsumer(_channel);
+        consumer.ReceivedAsync += async (sender, e) =>
         {
             var message = Encoding.UTF8.GetString(e.Body.ToArray());
-            _logger.LogInformation($"📦 Received message for email: {message}");
+            _logger.LogInformation("📦 Received message for email: {Message}", message);
 
             try
             {
@@ -65,16 +64,18 @@ public class Worker : BackgroundService
                 {
                     await SendEmailAsync(order);
                 }
+
+                await _channel!.BasicAckAsync(e.DeliveryTag, multiple: false);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error processing message: {ex.Message}");
+                _logger.LogError(ex, "Error processing message");
+                await _channel!.BasicNackAsync(e.DeliveryTag, multiple: false, requeue: true);
             }
-
-            _channel.BasicAck(e.DeliveryTag, multiple: false);
         };
 
-        _channel.BasicConsume(_queueName, autoAck: false, consumer);
+        await _channel.BasicConsumeAsync(_queueName, autoAck: false, consumer, stoppingToken);
+
         await Task.Delay(Timeout.Infinite, stoppingToken);
     }
 
@@ -96,24 +97,34 @@ public class Worker : BackgroundService
             <html>
             <body style='font-family: Arial;'>
                 <h2>Order Confirmation</h2>
-                <p>Hi {order.Email},</p>
+                <p>Hi {order.FullName},</p>
                 <p>Your order (ID: {order.OrderId}) has been placed successfully on {order.OrderDate}.</p>
                 <p><strong>Total:</strong> ${order.TotalPrice}</p>
                 <h4>Items:</h4>
                 <ul>
                     {string.Join("", order.Items.Select(i => $"<li>{i.ProductIdentifier} - {i.Quantity} × ${i.UnitPrice}</li>"))}
                 </ul>
+                <p> Will be sent to {order.Address}, {order.ZipCode} {order.City}, {order.Country} </p>   
+
                 <p>Thank you for shopping with Cryptocop!</p>
             </body>
             </html>";
 
+        _logger.LogInformation(htmlContent);
+
         var msg = MailHelper.CreateSingleEmail(from, to, subject, null, htmlContent);
         var response = await client.SendEmailAsync(msg);
-        _logger.LogInformation($"📨 Email sent to {order.Email}, status: {response.StatusCode}");
+        _logger.LogInformation("📨 Email sent to {Email}, status: {StatusCode}", order.Email, response.StatusCode);
     }
 
     private class OrderMessage
     {
+        public string FullName { get; set; } = "";
+        public string Address { get; set; } = "";
+        public string City { get; set; } = "";
+        public string Country { get; set; } = "";
+        public string ZipCode { get; set; } = "";
+        
         public int OrderId { get; set; }
         public string Email { get; set; } = "";
         public float TotalPrice { get; set; }
@@ -128,10 +139,12 @@ public class Worker : BackgroundService
         public float UnitPrice { get; set; }
     }
 
+    
+
     public override void Dispose()
     {
-        _channel?.Close();
-        _connection?.Close();
+        _channel?.Dispose();
+        _connection?.Dispose();
         base.Dispose();
     }
 }

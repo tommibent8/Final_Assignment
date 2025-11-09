@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:16
     container_name: cryptocop-postgres
     restart: always
     environment:
@@ -11,6 +11,8 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
+    networks:
+      - cryptocop-network
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -24,6 +26,29 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - cryptocop-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Cryptocop.Software.API/Dockerfile
+    container_name: cryptocop-api
+    restart: always
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=cryptocop_db;Username=cryptocop_user;Password=cryptocop_password
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+    ports:
+      - "5000:8080"
+    depends_on:
+      - postgres
+      - rabbitmq    
+    networks:
+      - cryptocop-network
 
   payments-worker:
     build:
@@ -39,22 +64,31 @@ services:
       - RabbitMq__QueueName=payment-queue
       - RabbitMq__RoutingKey=create-order
     restart: always
-    email-worker:
-      build:
-        context: .
-        dockerfile: Cryptocop.Software.Worker.Emails/Dockerfile
-      depends_on:
-        rabbitmq:
-          condition: service_healthy
-      environment:
-        - RabbitMq__HostName=rabbitmq
-        - RabbitMq__UserName=guest
-        - RabbitMq__Password=guest
-        - RabbitMq__ExchangeName=cryptocop-exchange
-        - RabbitMq__QueueName=email-queue
-        - RabbitMq__RoutingKey=create-order
-        - SendGrid__ApiKey=YOUR_SENDGRID_API_KEY
-      restart: always
+    networks:
+      - cryptocop-network
+        
+  email-worker:
+    build:
+      context: .
+      dockerfile: Cryptocop.Software.Worker.Emails/Dockerfile
+    depends_on:
+      - rabbitmq        
+    environment:
+      - RabbitMq__HostName=rabbitmq
+      - RabbitMq__UserName=guest
+      - RabbitMq__Password=guest
+      - RabbitMq__ExchangeName=cryptocop-exchange
+      - RabbitMq__QueueName=email-queue
+      - RabbitMq__RoutingKey=create-order
+      - SendGrid__ApiKey=YOUR_SENDGRID_API_KEY
+    restart: always
+    networks:
+      - cryptocop-network
+
+networks:
+  cryptocop-network:
+    driver: bridge
+    
 volumes:
   postgres_data:
   rabbitmq_data:

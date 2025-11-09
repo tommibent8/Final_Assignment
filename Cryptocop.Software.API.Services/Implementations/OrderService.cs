@@ -29,6 +29,11 @@ public class OrderService : IOrderService
         {
             OrderId = newOrder.Id,
             Email = newOrder.Email,
+            FullName = newOrder.FullName,
+            Address = $"{newOrder.StreetName}, {newOrder.HouseNumber}",
+            City = newOrder.City,
+            ZipCode = newOrder.ZipCode,
+            Country = newOrder.Country,
             TotalPrice = newOrder.TotalPrice,
             OrderDate = newOrder.OrderDate,
             Items = newOrder.OrderItems.Select(i => new

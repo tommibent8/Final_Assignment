@@ -1,13 +1,12 @@
-using System.Text;
 using Cryptocop.Software.API.Middleware;
+using Cryptocop.Software.API.Models;
 using Cryptocop.Software.API.Repositories.Contexts;
 using Cryptocop.Software.API.Repositories.Implementations;
 using Cryptocop.Software.API.Repositories.Interfaces;
 using Cryptocop.Software.API.Services.Implementations;
 using Cryptocop.Software.API.Services.Interfaces;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +22,9 @@ Console.WriteLine("DB Connection: " + builder.Configuration.GetConnectionString(
 
 builder.Services.AddDbContext<CryptocopDbContext>(opts =>
     opts.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// RabbitMQ Configuration
+builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMq"));
 
 // Dependencies
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -42,27 +44,7 @@ builder.Services.AddHttpClient<ICryptoCurrencyService, CryptoCurrencyService>();
 builder.Services.AddScoped<IExchangeService, ExchangeService>();
 builder.Services.AddSingleton<IQueueService, QueueService>();
 
-
-
-// JWT setup
-var jwt = builder.Configuration.GetSection("JwtSettings");
-var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Secret"]));
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(o =>
-    {
-        o.RequireHttpsMetadata = false;
-        o.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwt["Issuer"],
-            ValidAudience = jwt["Audience"],
-            IssuerSigningKey = key
-        };
-    });
+builder.Services.AddJwtAuthentication(builder.Configuration); // This is the CryptoCopAuthExtension
 
 builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
@@ -81,7 +63,6 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");
 app.UseAuthentication();
-app.UseMiddleware<JwtBlacklistMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
